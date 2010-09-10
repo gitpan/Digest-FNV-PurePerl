@@ -17,7 +17,7 @@ Version 0.01
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 
 =head1 SYNOPSIS
@@ -38,37 +38,61 @@ our $VERSION = '0.01';
 
 =head1 DESCRIPTION
 
-FNV is a hashing algorithm for short to medium length strings.  It is best suited for strings that are typically around 1024 bytes or less (URLs, IP addresses, hostnames, etc).  This implementation is based on the code provided by Landon Curt Noll.
+FNV is a hashing algorithm for short to medium length strings.  It is best
+suited for strings that are typically around 1024 bytes or less (URLs, IP
+addresses, hostnames, etc).  This implementation is based on the code provided
+by Landon Curt Noll.
 
-There are two slightly different algorithms.  One is called FNV-1, and the other is FNV-1a.  Both algorithms are provided for each of 32 and 64 bit hash values.
+There are two slightly different algorithms.  One is called FNV-1, and the other
+is FNV-1a.  Both algorithms are provided for each of 32 and 64 bit hash values.
 
-For full information on this algorithm please visit http://isthe.com/chongo/tech/comp/fnv/
+For full information on this algorithm please visit
+http://isthe.com/chongo/tech/comp/fnv/
 
-The original Digest::FNV was written by Tan D Nguyen <tnguyen@cpan.org>.  This version is a drop-in replacement (all existing code should continue to work).  However, it is a complete rewrite.
+The original Digest::FNV was written by Tan D Nguyen <tnguyen@cpan.org>.  This
+version is a drop-in replacement (all existing code should continue to work).
+However, it is a complete rewrite.
 
 This new version works on both 32 and 64 bit platforms.
 
 =head1 CAVEATS
 
-Part of the challenge of supporting this module are the differences between 32-bit and 64-bit architectures.
+Part of the challenge of supporting this module are the differences between
+32-bit and 64-bit architectures.
 
-In practice the values returned by these algorithms are often further processed (further algorithms).  It is for that reason that the nature of what the fnv64/fnv64a functions return is exposed.  When trying to support both 64 and 32 bit architectures it is necessary.
+In practice the values returned by these algorithms are often further processed
+further algorithms.  It is for that reason that the nature of what the
+fnv64/fnv64a functions return is exposed.  When trying to support both 64 and
+32 bit architectures it is necessary.
 
-You cannot rely on only $hashref->{bigint} if you plan to perform and further math on that value on 32 bit systems.  You also cannot rely on $hashref->{longlong} unless you know the architecture.
+You cannot rely on only $hashref->{bigint} if you plan to perform and further
+math on that value on 32 bit systems.  You also cannot rely on
+$hashref->{longlong} unless you know the architecture.
 
-This module attempts to provide all of the necessary information to arrive at a true 64-bit value.  Often times you're passing values to other software (a database, for example), and that database probably provides 64-bit left shift operations.
+This module attempts to provide all of the necessary information to arrive at a
+true 64-bit value.  Often times you're passing values to other software (a
+database, for example), and that database probably provides 64-bit left shift
+operations.
 
 =head1 EXPORT
 
-fnv()       - FNV-1 32 algorithm
-fnv32()     - Same as fnv()
-fnv32a()    - FNV-1a 32 algorithm
-fnv64()     - FNV-1 64 algorithm
-fnv64a()    - FNV-1a 64 algorithm
+fnv fnv32 fnv32a fnv64 fnv64a
 
 =head1 FUNCTIONS
 
-=head2 fnv
+=head2 fnv fnv32 fnv32a
+
+    use Digest::FNV::PurePerl;
+
+    my $url = "http://www.google.com/";
+    print fnv($url),"\n";
+        #-> 1088293357
+
+    print fnv32($url),"\n";
+        #-> 1088293357
+
+    print fnv32a($url),"\n";
+        #-> 912201313
 
 =cut
 
@@ -92,18 +116,10 @@ sub fnv {
     return $hval;
 }
 
-=head2 fnv32
-
-=cut
-
 sub fnv32 {
     my ($string) = @_;
     return fnv($string);
 }
-
-=head2 fnv32a
-
-=cut
 
 sub fnv32a {
     my ($string) = @_;
@@ -125,7 +141,30 @@ sub fnv32a {
     return $hval;
 }
 
-=head2 fnv64
+=head2 fnv64 fnv64a
+
+    use Digest::FNV::PurePerl;
+    use Data::Dumper;
+
+    my $url = "http://www.google.com/";
+    my $fnv64hash = fnv64($url);
+    print Dumper($fnv64hash);
+        #-> $VAR1 = {
+        #->          'bigint' => bless( {
+        #->                               'value' => [
+        #->                                            290527405,
+        #->                                            988083964,
+        #->                                            9
+        #->                                          ],
+        #->                               'sign' => '+'
+        #->                             }, 'Math::BigInt' ),
+        #->          'upper' => 2325532018,
+        #->          'lower' => 1179644077,
+        #->          'longlong' => '9988083964290527405',
+        #->          'bits' => 64
+        #->        };
+
+    fnv65a($url);
 
 =cut
 
@@ -229,10 +268,6 @@ sub fnv64 {
     }
 
 }
-
-=head2 fnv64a
-
-=cut
 
 sub fnv64a {
     my ($string) = @_;
