@@ -23,8 +23,6 @@ my %test64a = (
 foreach my $key (keys %test64) {
     my $fnv64 = fnv64($key);
 
-    print Dumper($fnv64),"\n";
-
     ok (
         $fnv64->{upper} == $test64{$key}{'upper'} &&
         $fnv64->{lower} == $test64{$key}{'lower'},
@@ -34,8 +32,6 @@ foreach my $key (keys %test64) {
 
 foreach my $key (keys %test64a) {
     my $fnv64a = fnv64a($key);
-
-    print Dumper($fnv64a),"\n";
 
     ok (
         $fnv64a->{upper} == $test64a{$key}{'upper'} &&

@@ -2,7 +2,7 @@
 
 use strict;
 use warnings;
-use Test::More tests => 8;
+use Test::More tests => 12;
 use Digest::FNV::PurePerl;
 
 my %test32 = (
@@ -22,19 +22,25 @@ my %test32a = (
 # Test fnv() && fnv32
 foreach my $key (keys %test32) {
     my $fnv = fnv($key);
+    cmp_ok(
+        $fnv, '==', $test32{$key},
+        'fnv: '.$key
+    );
+}
+
+foreach my $key (keys %test32) {
     my $fnv32 = fnv32($key);
-    ok (
-        $fnv == $fnv32 &&
-        $fnv == $test32{$key},
-        'fnv/fnv32: '.$key
+    cmp_ok(
+        $fnv32, '==', $test32{$key},
+        'fnv32: '.$key
     );
 }
 
 # Test fnv32a()
 foreach my $key (keys %test32) {
     my $fnv32a = fnv32a($key);
-    ok (
-        $fnv32a == $test32a{$key},
+    cmp_ok(
+        $fnv32a, '==', $test32a{$key},
         'fnv32a: '.$key
     );
 }

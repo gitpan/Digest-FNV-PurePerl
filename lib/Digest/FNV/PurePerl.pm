@@ -17,7 +17,7 @@ Version 0.01
 
 =cut
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 
 =head1 SYNOPSIS
@@ -98,20 +98,33 @@ fnv fnv32 fnv32a fnv64 fnv64a
 
 sub fnv {
     my ($string) = @_;
-
-    my @chars = split(//, $string);
     my $fnv_prime = 0x01000193;
     my $hval = 0x811c9dc5;
 
-    foreach my $c (@chars) {
-        $hval += (
-            (($hval << 1) ) +
-            (($hval << 4) ) +
-            (($hval << 7) ) +
-            (($hval << 8) ) +
-            (($hval << 24) ) );
-        $hval = $hval & 0xffffffff;
-        $hval ^= ord($c);
+    if ((1<<32) == 4294967296) {
+        foreach my $c (unpack('C*', $string)) {
+            $hval += (
+                (($hval << 1) ) +
+                (($hval << 4) ) +
+                (($hval << 7) ) +
+                (($hval << 8) ) +
+                (($hval << 24) ) );
+            $hval = $hval & 0xffffffff;
+            $hval ^= $c;
+        }
+    }
+    else {
+        use bigint;
+        foreach my $c (unpack('C*', $string)) {
+            $hval += (
+                (($hval << 1) ) +
+                (($hval << 4) ) +
+                (($hval << 7) ) +
+                (($hval << 8) ) +
+                (($hval << 24) ) );
+            $hval = $hval & 0xffffffff;
+            $hval ^= $c;
+        }
     }
     return $hval;
 }
@@ -123,20 +136,33 @@ sub fnv32 {
 
 sub fnv32a {
     my ($string) = @_;
-
-    my @chars = split(//, $string);
     my $fnv_prime = 0x01000193;
     my $hval = 0x811c9dc5;
 
-    foreach my $c (@chars) {
-        $hval ^= ord($c);
-        $hval += (
-            (($hval << 1) ) +
-            (($hval << 4) ) +
-            (($hval << 7) ) +
-            (($hval << 8) ) +
-            (($hval << 24) ) );
-        $hval = $hval & 0xffffffff;
+    if ((1<<32) == 4294967296) {
+        foreach my $c (unpack('C*', $string)) {
+            $hval ^= $c;
+            $hval += (
+                (($hval << 1) ) +
+                (($hval << 4) ) +
+                (($hval << 7) ) +
+                (($hval << 8) ) +
+                (($hval << 24) ) );
+            $hval = $hval & 0xffffffff;
+        }
+    }
+    else {
+        use bigint;
+        foreach my $c (unpack('C*', $string)) {
+            $hval ^= $c;
+            $hval += (
+                (($hval << 1) ) +
+                (($hval << 4) ) +
+                (($hval << 7) ) +
+                (($hval << 8) ) +
+                (($hval << 24) ) );
+            $hval = $hval & 0xffffffff;
+        }
     }
     return $hval;
 }
@@ -170,8 +196,6 @@ sub fnv32a {
 
 sub fnv64 {
     my ($string) = @_;
-
-    my @chars = split(//, $string);
     my $fnv_prime = 0;
     my %hval = (
         'bits'  => 0,
@@ -181,98 +205,75 @@ sub fnv64 {
         'bigint' => 0
     );
 
-    if ( 1 || (1 << 32) != 4294967296) {
+    if ((1<<32) == 4294967296) {
+        $hval{'bits'} = 64;
+    }
+    elsif ((1<<32) == 0) {
         $hval{'bits'} = 32;
-
-        my $FNV_64_PRIME_LOW = 0x1b3;	# lower bits of FNV prime
-        my $FNV_64_PRIME_SHIFT = 8;     # top FNV prime shift above 2^32
-        my @val = (0, 0, 0, 0);
-        my @tmp = (0, 0, 0, 0);
-        my $FNV1_64_LOWER = 0x84222325;
-        my $FNV1_64_UPPER = 0xcbf29ce4;
-        my $upper;
-        my $lower;
-
-        $val[0] = $FNV1_64_LOWER;
-        $val[1] = ($val[0] >> 16);
-        $val[0] &= 0xffff;
-        $val[2] = $FNV1_64_UPPER;
-        $val[3] = ($val[2] >> 16);
-        $val[2] &= 0xffff;
-
-        foreach my $c (@chars) {
-            $tmp[0] = $val[0] * $FNV_64_PRIME_LOW;
-            $tmp[1] = $val[1] * $FNV_64_PRIME_LOW;
-            $tmp[2] = $val[2] * $FNV_64_PRIME_LOW;
-            $tmp[3] = $val[3] * $FNV_64_PRIME_LOW;
-            # multiply by the other non-zero digit
-            $tmp[2] += $val[0] << $FNV_64_PRIME_SHIFT;	# tmp[2] += val[0] * 0x100
-            $tmp[3] += $val[1] << $FNV_64_PRIME_SHIFT;	# tmp[3] += val[1] * 0x100
-            # propagate carries
-            $tmp[1] += ($tmp[0] >> 16);
-            $val[0] = $tmp[0] & 0xffff;
-            $tmp[2] += ($tmp[1] >> 16);
-            $val[1] = $tmp[1] & 0xffff;
-            $val[3] = $tmp[3] + ($tmp[2] >> 16);
-            $val[2] = $tmp[2] & 0xffff;
-
-            # Doing a val[3] &= 0xffff; is not really needed since it simply
-            # removes multiples of 2^64.  We can discard these excess bits
-            # outside of the loop when we convert to Fnv64_t.
-        
-            $val[0] &= 0xffff;
-            $val[1] &= 0xffff;
-            $val[2] &= 0xffff;
-            $val[3] &= 0xffff;
-
-            $tmp[0] &= 0xffff;
-            $tmp[1] &= 0xffff;
-            $tmp[2] &= 0xffff;
-            $tmp[3] &= 0xffff;
-
-            # xor the bottom with the current octet
-            $val[0] ^= ord($c);
-        }
-        $upper = $hval{'upper'} = (($val[3]<<16) | $val[2]) & 0xffffffff;
-        $lower = $hval{'lower'} = (($val[1]<<16) | $val[0]) & 0xffffffff;
-        $hval{'longlong'} = ($upper << 32) | $lower;
-        use bigint;
-        $hval{'bigint'} = (($upper << 32) | $lower);
-        #print "Bigint: ".$hval{'bigint'}."\n";
-        #print "Longlong: ".$hval{'longlong'}."\n";
-        #print "Upper: ".$upper."\n";
-        #print "Lower: ".$lower."\n";
-        return \%hval;
     }
     else {
-        $hval{'bits'} = 64;
-        my $fnv = (0xcbf29ce4 << 32) | 0x84222325;
-
-        foreach my $c (@chars) {
-            # multiply by the 64 bit FNV magic prime mod 2^64
-            # $hval *= $FNV_64_PRIME;
-            $fnv += ($fnv << 1) + ($fnv << 4) + ($fnv << 5) +
-                ($fnv << 7) + ($fnv << 8) + ($fnv << 40);
-
-            # xor the bottom with the current octet
-        	$fnv ^= ord($c);
-        }
-        $hval{'upper'} = ($fnv >> 32) & 0xffffffff;
-        $hval{'lower'} = $fnv & 0xffffffff;
-        $hval{'bigint'} = $hval{'longlong'} = $fnv;
-        #print "Bigint: ".$hval{'bigint'}."\n";
-        #print "Longlong: ".$hval{'longlong'}."\n";
-        #print "Upper: ".$hval{'upper'}."\n";
-        #print "Lower: ".$hval{'lower'}."\n";
-        return \%hval;
+        $hval{'bits'} = undef;
     }
 
+    my $FNV_64_PRIME_LOW = 0x1b3;	# lower bits of FNV prime
+    my $FNV_64_PRIME_SHIFT = 8;     # top FNV prime shift above 2^32
+    my @val = (0, 0, 0, 0);
+    my @tmp = (0, 0, 0, 0);
+    my $FNV1_64_LOWER = 0x84222325;
+    my $FNV1_64_UPPER = 0xcbf29ce4;
+    my $upper;
+    my $lower;
+
+    $val[0] = $FNV1_64_LOWER;
+    $val[1] = ($val[0] >> 16);
+    $val[0] &= 0xffff;
+    $val[2] = $FNV1_64_UPPER;
+    $val[3] = ($val[2] >> 16);
+    $val[2] &= 0xffff;
+
+    foreach my $c (unpack('C*', $string)) {
+        $tmp[0] = $val[0] * $FNV_64_PRIME_LOW;
+        $tmp[1] = $val[1] * $FNV_64_PRIME_LOW;
+        $tmp[2] = $val[2] * $FNV_64_PRIME_LOW;
+        $tmp[3] = $val[3] * $FNV_64_PRIME_LOW;
+        # multiply by the other non-zero digit
+        $tmp[2] += $val[0] << $FNV_64_PRIME_SHIFT;	# tmp[2] += val[0] * 0x100
+        $tmp[3] += $val[1] << $FNV_64_PRIME_SHIFT;	# tmp[3] += val[1] * 0x100
+        # propagate carries
+        $tmp[1] += ($tmp[0] >> 16);
+        $val[0] = $tmp[0] & 0xffff;
+        $tmp[2] += ($tmp[1] >> 16);
+        $val[1] = $tmp[1] & 0xffff;
+        $val[3] = $tmp[3] + ($tmp[2] >> 16);
+        $val[2] = $tmp[2] & 0xffff;
+
+        # Doing a val[3] &= 0xffff; is not really needed since it simply
+        # removes multiples of 2^64.  We can discard these excess bits
+        # outside of the loop when we convert to Fnv64_t.
+    
+        $val[0] &= 0xffff;
+        $val[1] &= 0xffff;
+        $val[2] &= 0xffff;
+        $val[3] &= 0xffff;
+
+        $tmp[0] &= 0xffff;
+        $tmp[1] &= 0xffff;
+        $tmp[2] &= 0xffff;
+        $tmp[3] &= 0xffff;
+
+        # xor the bottom with the current octet
+        $val[0] ^= $c;
+    }
+    $upper = $hval{'upper'} = (($val[3]<<16) | $val[2]) & 0xffffffff;
+    $lower = $hval{'lower'} = (($val[1]<<16) | $val[0]) & 0xffffffff;
+    $hval{'longlong'} = ($upper << 32) | $lower;
+    use bigint;
+    $hval{'bigint'} = (($upper << 32) | $lower);
+    return \%hval;
 }
 
 sub fnv64a {
     my ($string) = @_;
-
-    my @chars = split(//, $string);
     my $fnv_prime = 0;
     my %hval = (
         'bits'  => 0,
@@ -282,91 +283,75 @@ sub fnv64a {
         'bigint' => 0
     );
 
-    if ( 1 || (1 << 32) != 4294967296) {
+    if ((1<<32) == 4294967296) {
+        $hval{'bits'} = 64;
+    }
+    elsif ((1<<32) == 0) {
         $hval{'bits'} = 32;
-
-        my $FNV_64_PRIME_LOW = 0x1b3;	# lower bits of FNV prime
-        my $FNV_64_PRIME_SHIFT = 8;     # top FNV prime shift above 2^32
-        my @val = (0, 0, 0, 0);
-        my @tmp = (0, 0, 0, 0);
-        my $FNV1_64_LOWER = 0x84222325;
-        my $FNV1_64_UPPER = 0xcbf29ce4;
-        my $upper;
-        my $lower;
-
-        $val[0] = $FNV1_64_LOWER;
-        $val[1] = ($val[0] >> 16);
-        $val[0] &= 0xffff;
-        $val[2] = $FNV1_64_UPPER;
-        $val[3] = ($val[2] >> 16);
-        $val[2] &= 0xffff;
-
-        foreach my $c (@chars) {
-            # xor the bottom with the current octet
-            $val[0] ^= ord($c);
-
-            $tmp[0] = $val[0] * $FNV_64_PRIME_LOW;
-            $tmp[1] = $val[1] * $FNV_64_PRIME_LOW;
-            $tmp[2] = $val[2] * $FNV_64_PRIME_LOW;
-            $tmp[3] = $val[3] * $FNV_64_PRIME_LOW;
-            # multiply by the other non-zero digit
-            $tmp[2] += $val[0] << $FNV_64_PRIME_SHIFT;	# tmp[2] += val[0] * 0x100
-            $tmp[3] += $val[1] << $FNV_64_PRIME_SHIFT;	# tmp[3] += val[1] * 0x100
-            # propagate carries
-            $tmp[1] += ($tmp[0] >> 16);
-            $val[0] = $tmp[0] & 0xffff;
-            $tmp[2] += ($tmp[1] >> 16);
-            $val[1] = $tmp[1] & 0xffff;
-            $val[3] = $tmp[3] + ($tmp[2] >> 16);
-            $val[2] = $tmp[2] & 0xffff;
-
-            # Doing a val[3] &= 0xffff; is not really needed since it simply
-            # removes multiples of 2^64.  We can discard these excess bits
-            # outside of the loop when we convert to Fnv64_t.
-
-            $val[0] &= 0xffff;
-            $val[1] &= 0xffff;
-            $val[2] &= 0xffff;
-            $val[3] &= 0xffff;
-
-            $tmp[0] &= 0xffff;
-            $tmp[1] &= 0xffff;
-            $tmp[2] &= 0xffff;
-            $tmp[3] &= 0xffff;
-        }
-        $upper = $hval{'upper'} = (($val[3]<<16) | $val[2]) & 0xffffffff;
-        $lower = $hval{'lower'} = (($val[1]<<16) | $val[0]) & 0xffffffff;
-        $hval{'longlong'} = ($upper << 32) | $lower;
-        use bigint;
-        $hval{'bigint'} = (($upper << 32) | $lower);
-        #print "Bigint: ".$hval{'bigint'}."\n";
-        #print "Longlong: ".$hval{'longlong'}."\n";
-        #print "Upper: ".$upper."\n";
-        #print "Lower: ".$lower."\n";
-        return \%hval;
     }
     else {
-        $hval{'bits'} = 64;
-        my $fnv = (0xcbf29ce4 << 32) | 0x84222325;
-
-        foreach my $c (@chars) {
-            # xor the bottom with the current octet
-        	$fnv ^= ord($c);
-
-            # multiply by the 64 bit FNV magic prime mod 2^64
-            # $hval *= $FNV_64_PRIME;
-            $fnv += ($fnv << 1) + ($fnv << 4) + ($fnv << 5) +
-                ($fnv << 7) + ($fnv << 8) + ($fnv << 40);
-        }
-        $hval{'upper'} = ($fnv >> 32) & 0xffffffff;
-        $hval{'lower'} = $fnv & 0xffffffff;
-        $hval{'bigint'} = $hval{'longlong'} = $fnv;
-        #print "Bigint: ".$hval{'bigint'}."\n";
-        #print "Longlong: ".$hval{'longlong'}."\n";
-        #print "Upper: ".$hval{'upper'}."\n";
-        #print "Lower: ".$hval{'lower'}."\n";
-        return \%hval;
+        $hval{'bits'} = undef;
     }
+
+    my $FNV_64_PRIME_LOW = 0x1b3;	# lower bits of FNV prime
+    my $FNV_64_PRIME_SHIFT = 8;     # top FNV prime shift above 2^32
+    my @val = (0, 0, 0, 0);
+    my @tmp = (0, 0, 0, 0);
+    my $FNV1_64_LOWER = 0x84222325;
+    my $FNV1_64_UPPER = 0xcbf29ce4;
+    my $upper;
+    my $lower;
+
+    $val[0] = $FNV1_64_LOWER;
+    $val[1] = ($val[0] >> 16);
+    $val[0] &= 0xffff;
+    $val[2] = $FNV1_64_UPPER;
+    $val[3] = ($val[2] >> 16);
+    $val[2] &= 0xffff;
+
+    foreach my $c (unpack('C*', $string)) {
+        # xor the bottom with the current octet
+        $val[0] ^= $c;
+
+        $tmp[0] = $val[0] * $FNV_64_PRIME_LOW;
+        $tmp[1] = $val[1] * $FNV_64_PRIME_LOW;
+        $tmp[2] = $val[2] * $FNV_64_PRIME_LOW;
+        $tmp[3] = $val[3] * $FNV_64_PRIME_LOW;
+        # multiply by the other non-zero digit
+        $tmp[2] += $val[0] << $FNV_64_PRIME_SHIFT;	# tmp[2] += val[0] * 0x100
+        $tmp[3] += $val[1] << $FNV_64_PRIME_SHIFT;	# tmp[3] += val[1] * 0x100
+        # propagate carries
+        $tmp[1] += ($tmp[0] >> 16);
+        $val[0] = $tmp[0] & 0xffff;
+        $tmp[2] += ($tmp[1] >> 16);
+        $val[1] = $tmp[1] & 0xffff;
+        $val[3] = $tmp[3] + ($tmp[2] >> 16);
+        $val[2] = $tmp[2] & 0xffff;
+
+        # Doing a val[3] &= 0xffff; is not really needed since it simply
+        # removes multiples of 2^64.  We can discard these excess bits
+        # outside of the loop when we convert to Fnv64_t.
+
+        $val[0] &= 0xffff;
+        $val[1] &= 0xffff;
+        $val[2] &= 0xffff;
+        $val[3] &= 0xffff;
+
+        $tmp[0] &= 0xffff;
+        $tmp[1] &= 0xffff;
+        $tmp[2] &= 0xffff;
+        $tmp[3] &= 0xffff;
+    }
+    $upper = $hval{'upper'} = (($val[3]<<16) | $val[2]) & 0xffffffff;
+    $lower = $hval{'lower'} = (($val[1]<<16) | $val[0]) & 0xffffffff;
+    $hval{'longlong'} = ($upper << 32) | $lower;
+    use bigint;
+    $hval{'bigint'} = (($upper << 32) | $lower);
+    #print "Bigint: ".$hval{'bigint'}."\n";
+    #print "Longlong: ".$hval{'longlong'}."\n";
+    #print "Upper: ".$upper."\n";
+    #print "Lower: ".$lower."\n";
+    return \%hval;
 }
 
 =head1 AUTHOR
